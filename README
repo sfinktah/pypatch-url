@@ -1,0 +1,142 @@
+pypatch-url
+===========
+
+Automatically apply patches to third-party libraries as part of your build.
+
+Now and again, a specific fix is needed for a python package that isn't available from the vendor/community.
+This project was created to allow a way for us to patch specific python modules during the build process.
+
+pypatch-url is a fork of Sitka Technology Group's PyPatch tool, which itself is a command wrapper based around Anatoly Techtonik's patch.py utility. This fork adds two important features that were already present in the underlying patch.py utility but weren't accessible from the command line:
+
+1. **Path stripping** with `-p NUM` or `--strip=NUM` to strip leading components from file names (matching the standard Unix `patch` tool)
+2. **URL support** to automatically download patches when a URL is specified instead of a local file path
+
+These enhancements were contributed by sfinktah@github.spamtrak.org, although the underlying functionality already existed in Anatoly Techtonik's patch.py library.
+
+*****
+Usage
+*****
+
+    ``pypatch-url apply [library.package] custom_diff.patch``
+
+With the new options:
+
+    ``pypatch-url apply -p 1 [library.package] custom_diff.patch``  # Strip one directory level from paths
+
+    ``pypatch-url apply [library.package] https://example.com/patches/fix.patch``  # Download and apply patch
+
+As a part of the work flow:
+    ``c:\project\pip install django``
+
+    ``c:\project\pip install pypatch-url``
+
+    ``c:\project\pypatch-url apply django.contrib.auth c:\project\patches\my_auth_fix.patch``
+
+************
+How it works
+************
+pypatch-url applies patches to files relative to the root directory of the named package. So it does have to be installed into the target environment.
+
+For example, if the django package was installed to "C:\Python27\Lib\site-packages\django" and you needed to patch the auth contrib package (django.contrib.auth), your command might look like
+
+    ``pypatch-url apply django.contrib.auth c:\project\patches\my_auth_fix.patch"``
+
+and the files named in my_auth_fix.patch would use relative pathing from the package directory:
+
+    ``--- models.py    2013-05-06 15:12:14.212220100 -0700``
+
+    ``+++ models.py    2013-05-06 14:36:20.535220100 -0700``
+
+If you used
+
+    ```pypatch-url apply django.contrib c:\project\patches\my_auth_fix.patch```
+
+instead, your diff patch would read
+
+    ``--- auth/models.py	2013-05-06 15:12:14.212220100 -0700``
+
+    ``+++ auth/models.py	2013-05-06 14:36:20.535220100 -0700``
+
+**************
+Path Stripping
+**************
+The `-p NUM` or `--strip=NUM` option allows you to strip leading path components from file names in the patch. This is especially useful when applying patches created from different directory structures:
+
+    ``pypatch-url apply -p 1 django c:\project\patches\my_fix.patch``
+
+This would strip the first directory component from each path in the patch file.
+
+************
+URL Support
+************
+You can directly specify a URL instead of a local patch file:
+
+    ``pypatch-url apply django https://example.com/patches/fix.patch``
+
+This will automatically download the patch file from the URL and apply it to the specified module.
+
+*****
+Build
+*****
+To build the distributable python package, run 'sdist' from the Project Root Directory.
+Recommended: setting the output directory to our Libraries folder
+
+    ``sdist --dist-dir="C:\outputdir"``
+
+This will build the zipped python package that can be installed via pip or easy_install
+
+*****
+Testing
+*****
+
+There are two ways to run the tests:
+
+1. Using the built-in test runner (no additional dependencies required):
+
+    ``pypatch-url-test``
+
+2. Using pytest (recommended for development):
+
+    First install the development dependencies:
+
+    ``pip install -e ".[dev]"``
+
+    Then run the tests using pytest:
+
+    ``pytest``
+
+    Or using the Makefile:
+
+    ``make test``
+
+    To run tests with coverage:
+
+    ``make test-cov``
+
+*****
+Other
+*****
+
+Information on the Unified Diff format can be found at     https://www.gnu.org/software/diffutils/manual/html_node/Unified-Format.html#Unified-Format
+
+The MIT License (MIT)
+
+Copyright (c) 2013 sitkatech
+Copyright (c) 2025 sfinktah@github.spamtrak.org for path stripping and URL enhancements
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER

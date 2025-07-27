@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypatch_url"
+version = "1.0.3"
+description = "Utility to apply unified diff patches to installed python modules."
+readme = "Source/README"
+license = {text = "MIT"}
+authors = [
+    {name = "Sitka Technology Group", email = "info@sitkatech.com"}
+]
+keywords = ["build", "tool", "patch", "unified", "diff"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Utilities",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "six"
+]
+requires-python = ">=2.7"
+
+[project.urls]
+Homepage = "http://sitkatech.com"
+
+[project.scripts]
+"pypatch-url" = "pypatch_url.command:main"
+"pypatch-url-test" = "pypatch_url.test_runner:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["Source"]
+include = ["pypatch*"]
+
+[tool.setuptools.package-data]
+"*" = ["*"]
+
+[tool.pytest.ini_options]
+addopts = "-v"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+log_cli = true
+log_cli_level = "INFO"

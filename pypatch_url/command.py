@@ -62,11 +62,29 @@ def apply_patch(args, debug=True):
         raise argparse.ArgumentTypeError(msg)
 
     try:
-        if not os.path.exists(args.patch_file):
-            print("Unable to locate patch file '%s'" % args.patch_file)
-            return
+        # Check if patch_file is a URL or local file
+        if args.patch_file.startswith(('http://', 'https://', 'ftp://')):
+            patch_set = pypatch.fromurl(args.patch_file)
+            if not patch_set:
+                print("Failed to download or parse patch from URL '%s'" % args.patch_file)
+                return
+        else:
+            if not os.path.exists(args.patch_file):
+                print("Unable to locate patch file '%s'" % args.patch_file)
+                return
+            patch_set = pypatch.fromfile(args.patch_file)
 
-        patch_set = pypatch.fromfile(args.patch_file)
+        # Apply path stripping if specified
+        if hasattr(args, 'strip') and args.strip is not None:
+            strip_count = args.strip
+            for patch in patch_set.items:
+                if patch.source:
+                    patch.source = pypatch.pathstrip(patch.source, strip_count)
+                    patch.source = pypatch.xnormpath(patch.source)
+                if patch.target:
+                    patch.target = pypatch.pathstrip(patch.target, strip_count)
+                    patch.target = pypatch.xnormpath(patch.target)
+
         os.chdir(module_path)
         result = patch_set.apply()
 
@@ -75,12 +93,13 @@ def apply_patch(args, debug=True):
         traceback.print_exc()
         if hasattr(err, 'message'):
             print(err.message)
-        sys.exit(1)
+        return False
     if result:
         print("Module '%s' patched successfully!" % args.module)
+        return True
     else:
         print("Unable to apply patch. Please verify the patch contents and python module.")
-        sys.exit(1)
+        return False
 
 
 def get_module_path(module_name):
@@ -129,9 +148,15 @@ def main():
                                     default='DEBUG',
                                     help='use debug logging',)
 
+    apply_patch_parser.add_argument('-p', '--strip',
+                                    metavar='NUM',
+                                    type=int,
+                                    help='Strip NUM leading components from file names.')
+
     apply_patch_parser.set_defaults(func=apply_patch)
     args = parser.parse_args()
-    args.func(args, debug=args.debug.upper())
+    success = args.func(args, debug=args.debug.upper())
+    sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":

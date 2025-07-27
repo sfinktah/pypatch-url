@@ -25,6 +25,7 @@ import shutil
 from os.path import isfile, abspath
 from six import StringIO
 from six.moves.urllib.request import urlopen
+from six.moves.urllib import error as urllib_error
 
 
 #------------------------------------------------
@@ -102,13 +103,19 @@ def xstrip(filename):
 
         This function is critical for security.
     """
+    # Convert all backslashes to forward slashes for consistency
+    filename = filename.replace('\\', '/')
+
     while xisabs(filename):
         # strip windows drive with all slashes
-        if re.match(r'\w:[\\/]', filename):
-            filename = re.sub(r'^\w+:[\\/]+', '', filename)
+        if re.match(r'\w:[\/]', filename):
+            filename = re.sub(r'^\w+:[\/]+', '', filename)
+        # strip UNC paths (Windows network paths)
+        elif re.match(r'^//[^/]+/[^/]+/', filename):
+            filename = re.sub(r'^//[^/]+/[^/]+/', '', filename)
         # strip all slashes
-        elif re.match(r'[\\/]', filename):
-            filename = re.sub(r'^[\\/]+', '', filename)
+        elif re.match(r'/', filename):
+            filename = re.sub(r'^/+', '', filename)
     return filename
 
 #-----------------------------------------------
@@ -146,20 +153,43 @@ def fromurl(url):
         if an error occurred. Note that this also
         can throw urlopen() exceptions.
     """
-    ps = PatchSet(urlopen(url))
-    if ps.errors == 0:
-        return ps
-    return False
+    try:
+        response = urlopen(url)
+        content = response.read()
+        if six.PY3 and isinstance(content, bytes):
+            content = content.decode('utf-8')
+        ps = PatchSet(StringIO(content))
+        if ps.errors == 0:
+            return ps
+        return False
+    except six.moves.urllib.error.HTTPError as e:
+        warning("HTTP Error %d: %s" % (e.code, e.reason))
+        return False
+    except six.moves.urllib.error.URLError as e:
+        warning("URL Error: %s" % e.reason)
+        return False
 
 
 # --- Utility functions ---
 # [ ] reuse more universal pathsplit()
 def pathstrip(path, n):
     """ Strip n leading components from the given path """
+    # Convert Windows path separators to Unix for consistency
+    path = path.replace('\\', '/')
+
+    # Split the path into components
     pathlist = [path]
     while os.path.dirname(pathlist[0]) != '':
         pathlist[0:1] = os.path.split(pathlist[0])
-    return '/'.join(pathlist[n:])
+
+    # Join the path components after skipping n components
+    result = '/'.join(pathlist[n:])
+
+    # Preserve trailing slash if the original path had one
+    if path.endswith('/') and not result.endswith('/'):
+        result += '/'
+
+    return result
 
 # --- /Utility function ---
 
@@ -990,22 +1020,32 @@ class PatchSet(object):
 
 
     def write_hunks(self, srcname, tgtname, hunks):
-        if six.PY2:
-            src = open(srcname, "rb")
-            tgt = open(tgtname, "wb")
-        else:
-            src = open(srcname, "r")
-            tgt = open(tgtname, "w")
+        src = None
+        tgt = None
+        try:
+            if six.PY2:
+                src = open(srcname, "rb")
+                tgt = open(tgtname, "wb")
+            else:
+                src = open(srcname, "r")
+                tgt = open(tgtname, "w")
 
-        debug("processing target file %s" % tgtname)
+            debug("processing target file %s" % tgtname)
 
-        tgt.writelines(self.patch_stream(src, hunks))
+            tgt.writelines(self.patch_stream(src, hunks))
 
-        tgt.close()
-        src.close()
-        # [ ] TODO: add test for permission copy
-        shutil.copymode(srcname, tgtname)
-        return True
+            tgt.close()
+            src.close()
+            # [ ] TODO: add test for permission copy
+            shutil.copymode(srcname, tgtname)
+            return True
+        except Exception as e:
+            debug("Error writing hunks: %s" % str(e))
+            if tgt:
+                tgt.close()
+            if src:
+                src.close()
+            return False
 
 
 if __name__ == "__main__":
