@@ -24,8 +24,8 @@ import shutil
 
 from os.path import isfile, abspath
 from six import StringIO
-from six.moves.urllib.request import urlopen
-from six.moves.urllib import error as urllib_error
+# from six.moves.urllib.request import urlopen
+# from six.moves.urllib import error as urllib_error
 
 
 #------------------------------------------------
@@ -34,7 +34,7 @@ from six.moves.urllib import error as urllib_error
 
 debugmode = False
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('pypatch.patch')
 
 debug = logger.debug
 info = logger.info
@@ -154,7 +154,7 @@ def fromurl(url):
         can throw urlopen() exceptions.
     """
     try:
-        response = urlopen(url)
+        response = six.moves.urllib.request.urlopen(url)
         content = response.read()
         if six.PY3 and isinstance(content, bytes):
             content = content.decode('utf-8')
@@ -229,6 +229,7 @@ class Patch(object):
         self.type = None
 
 
+# noinspection SpellCheckingInspection
 class PatchSet(object):
     def __init__(self, stream=None):
         # --- API accessible fields ---
@@ -250,6 +251,11 @@ class PatchSet(object):
 
     def __len__(self):
         return len(self.items)
+
+    def __str__(self):
+        """Return a string representation of this PatchSet."""
+        items_str = '[' + ', '.join(f"Patch(source='{p.source}', target='{p.target}')" for p in self.items) + ']'
+        return f"PatchSet(type={self.type or 'None'}, items={items_str})"
 
     def parse(self, stream):
         """ parse unified diff
@@ -313,7 +319,7 @@ class PatchSet(object):
         hunkparsed = False # state after successfully parsed hunk
 
         # regexp to match start of hunk, used groups - 1,3,4,6
-        re_hunk_start = re.compile("^@@ -(\d+)(,(\d+))? \+(\d+)(,(\d+))?")
+        re_hunk_start = re.compile(r"^@@ -(\d+)(,(\d+))? \+(\d+)(,(\d+))?")
 
         self.errors = 0
         # temp buffers for header and filenames info
@@ -492,7 +498,7 @@ class PatchSet(object):
                         filenames = False
                         headscan = True
                     else:
-                        re_filename = "^\+\+\+ ([^\t]+)"
+                        re_filename = r"^\+\+\+ ([^\t]+)"
                         match = re.match(re_filename, line)
                         if not match:
                             warning("skipping invalid patch - no target filename at line %d" % lineno)
@@ -518,7 +524,7 @@ class PatchSet(object):
                             continue
 
             if hunkhead:
-                match = re.match("^@@ -(\d+)(,(\d+))? \+(\d+)(,(\d+))?", line)
+                match = re.match(r"^@@ -(\d+)(,(\d+))? \+(\d+)(,(\d+))?", line)
                 if not match:
                     if not p.hunks:
                         warning("skipping invalid patch with no hunks for file %s" % p.source)
@@ -770,6 +776,7 @@ class PatchSet(object):
             return True on success
         """
 
+        debug("Hello %s", "fred")
         total = len(self.items)
         errors = 0
         if strip:

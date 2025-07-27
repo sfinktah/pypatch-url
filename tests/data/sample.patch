@@ -4,3 +4,9 @@
  def hello_world():
 -    return "Hello, World!"
 +    return "Hello, Patched World!"
+--- example.py	2023-01-01 12:00:00.000000000 -0000
++++ example.py	2023-01-01 12:01:00.000000000 -0000
+@@ -1,2 +1,2 @@
+ def hello_world():
+-    return "Hello, World!"
++    return "Hello, Patched World!"

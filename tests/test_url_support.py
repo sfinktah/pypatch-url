@@ -3,11 +3,16 @@ import sys
 import tempfile
 import shutil
 import pytest
-from unittest import mock
+# First we need to adjust the path to find the modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Now we can import the test dependencies
+import unittest.mock as mock
 from io import StringIO
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Source')))
-from pypatch_url import command, patch
+# Import our package modules
+from pypatch_url import command
+from pypatch_url import patch
 
 
 @pytest.fixture
@@ -23,12 +28,16 @@ def temp_module():
 
     yield temp_dir, module_dir
 
-    # Cleanup
-    shutil.rmtree(temp_dir)
+    # Cleanup with error handling for Windows permission issues
+    try:
+        shutil.rmtree(temp_dir)
+    except PermissionError:
+        pass
 
 
 def test_url_download(temp_module, monkeypatch):
     """Test patch downloading from URL"""
+    # Get the temporary module directories from the fixture
     temp_dir, module_dir = temp_module
 
     # Create mock patch content
@@ -45,6 +54,8 @@ def test_url_download(temp_module, monkeypatch):
     def mock_urlopen(url):
         return StringIO(patch_content)
 
+    # In pytest, we can directly monkeypatch the module
+    # This will properly handle cleanup automatically
     monkeypatch.setattr('six.moves.urllib.request.urlopen', mock_urlopen)
 
     # Mock sys.path to include our test module
@@ -64,13 +75,14 @@ def test_url_download(temp_module, monkeypatch):
     args.strip = None
 
     # Apply the patch
-    command.apply_patch(args, debug='ERROR')
+    result = command.apply_patch(args, debug=False)
+    assert result, "Patch application failed"
 
     # Verify the file was patched
     with open(os.path.join(module_dir, 'example.py'), 'r') as f:
         content = f.read()
 
-    assert 'return "Function patched from URL"' in content
+    assert 'return "Function patched from URL"' in content, "Patch was not applied correctly"
 
     # Restore sys.path
     sys.path = original_path

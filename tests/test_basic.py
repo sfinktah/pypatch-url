@@ -3,10 +3,16 @@ import sys
 import tempfile
 import shutil
 import pytest
-from unittest import mock
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Source')))
-from pypatch_url import command, patch
+# First we need to adjust the path to find the modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Now we can import the test dependencies
+import unittest.mock as mock
+
+# Import our package modules
+from pypatch_url import command
+from pypatch_url import patch
 
 
 @pytest.fixture
@@ -22,8 +28,11 @@ def temp_module():
 
     yield temp_dir, module_dir
 
-    # Cleanup
-    shutil.rmtree(temp_dir)
+    # Cleanup with error handling for Windows permission issues
+    try:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    except PermissionError:
+        pass
 
 
 @pytest.fixture
