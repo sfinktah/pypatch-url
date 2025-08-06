@@ -792,25 +792,35 @@ class PatchSet(object):
 
         #for fileno, filename in enumerate(self.source):
         for i, p in enumerate(self.items):
-            f2patch = p.source
-            debug("applying patch to '%s'" % f2patch)
             if strip:
-                debug("stripping %s leading component from '%s'" % (strip, f2patch))
-                f2patch = pathstrip(f2patch, strip)
-            if not os.path.exists(f2patch):
-                f2patch = p.target
-                if strip:
-                    debug("stripping %s leading component from '%s'" % (strip, f2patch))
-                    f2patch = pathstrip(f2patch, strip)
-                if not os.path.exists(f2patch):
-                    warning("source/target file does not exist\n--- %s\n+++ %s" % (p.source, f2patch))
-                    errors += 1
-                    continue
-            if not isfile(f2patch):
-                warning("not a file - %s" % f2patch)
+                if isinstance(strip, int):
+                    if strip > 0:
+                        file_to_patch = self.stripper(p, strip)
+                    else:
+                        raise ValueError("Strip value must be greater than 0")
+                elif isinstance(strip, str) and strip == "auto":
+                    # Count slashes in both source and target, use the larger count
+                    source_slashes = p.source.count('/')
+                    target_slashes = p.target.count('/')
+                    max_strip = min(source_slashes, target_slashes) + 1
+                    file_to_patch = None
+                    for strip_value in range(1, max_strip):  # 1 to 99
+                        file_to_patch = self.stripper(p, strip_value)
+                        if file_to_patch is not None:
+                            break
+                    if file_to_patch is None:
+                        raise ValueError("Could not find valid strip value in auto mode")
+                else:
+                    raise ValueError("Strip must be a positive integer or 'auto'")
+            else:
+                file_to_patch = p.source
+
+            debug("applying patch to '%s'" % file_to_patch)
+            if not isfile(file_to_patch):
+                warning("not a file - %s" % file_to_patch)
                 errors += 1
                 continue
-            filename = f2patch
+            filename = file_to_patch
 
             debug("processing %d/%d:\t %s" % (i + 1, total, filename))
 
@@ -907,6 +917,19 @@ class PatchSet(object):
         # todo: check for premature eof
         return (errors == 0)
 
+    @staticmethod
+    def stripper(p, strip):
+        file_to_patch = p.source
+        debug("stripping %s leading component(s) from '%s'" % (strip, file_to_patch))
+        file_to_patch = pathstrip(file_to_patch, strip)
+        if not os.path.exists(file_to_patch):
+            file_to_patch = p.target
+            debug("stripping %s leading component(s) from '%s'" % (strip, file_to_patch))
+            file_to_patch = pathstrip(file_to_patch, strip)
+            if not os.path.exists(file_to_patch):
+                debug("source/target file does not exist\n--- %s\n+++ %s" % (p.source, file_to_patch))
+                return None
+        return file_to_patch
 
     def can_patch(self, filename):
         """ Check if specified filename can be patched. Returns None if file can
