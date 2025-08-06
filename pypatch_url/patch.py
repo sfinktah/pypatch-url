@@ -130,7 +130,7 @@ def fromfile(filename):
     if six.PY2:
         fp = open(filename, "rb")
     else:
-        fp = open(filename, "r")
+        fp = open(filename, "r", encoding="utf-8", errors="replace")
     res = patchset.parse(fp)
     fp.close()
     if res == True:
@@ -155,9 +155,12 @@ def fromurl(url):
     """
     try:
         response = six.moves.urllib.request.urlopen(url)
-        content = response.read()
-        if six.PY3 and isinstance(content, bytes):
-            content = content.decode('utf-8')
+        encoding = response.headers.get_content_charset('utf-8')  # Default to 'utf-8' if not specified
+        content = response.read().decode(encoding, errors='replace')
+
+        # if six.PY3 and isinstance(content, bytes):
+        #     content = content.decode('utf-8', errors='replace')
+
         ps = PatchSet(StringIO(content))
         if ps.errors == 0:
             return ps
@@ -350,7 +353,7 @@ class PatchSet(object):
                     header.append(fe.line)
                     fe.next()
                 if fe.is_empty:
-                    if p == None:
+                    if p is None:
                         debug("no patch data found")  # error is shown later
                         self.errors += 1
                     else:
@@ -383,12 +386,22 @@ class PatchSet(object):
                 # process line first
                 if re.match(r"^[- \+\\]", line):
                     # gather stats about line endings
-                    if line.endswith("\r\n"):
-                        p.hunkends["crlf"] += 1
-                    elif line.endswith("\n"):
-                        p.hunkends["lf"] += 1
-                    elif line.endswith("\r"):
-                        p.hunkends["cr"] += 1
+                    if isinstance(line, bytes):
+                        # Handle binary mode
+                        if line.endswith(b"\r\n"):
+                            p.hunkends["crlf"] += 1
+                        elif line.endswith(b"\n"):
+                            p.hunkends["lf"] += 1
+                        elif line.endswith(b"\r"):
+                            p.hunkends["cr"] += 1
+                    else:
+                        # Handle text mode
+                        if line.endswith("\r\n"):
+                            p.hunkends["crlf"] += 1
+                        elif line.endswith("\n"):
+                            p.hunkends["lf"] += 1
+                        elif line.endswith("\r"):
+                            p.hunkends["cr"] += 1
 
                     if line.startswith("-"):
                         hunkactual["linessrc"] += 1
@@ -452,7 +465,7 @@ class PatchSet(object):
 
             if filenames:
                 if line.startswith("--- "):
-                    if srcname != None:
+                    if srcname is not None:
                         # XXX testcase
                         warning("skipping false patch for %s" % srcname)
                         srcname = None
@@ -472,7 +485,7 @@ class PatchSet(object):
                         filenames = False
                         headscan = True
                 elif not line.startswith("+++ "):
-                    if srcname != None:
+                    if srcname is not None:
                         warning("skipping invalid patch with no target for %s" % srcname)
                         self.errors += 1
                         srcname = None
@@ -484,7 +497,7 @@ class PatchSet(object):
                     filenames = False
                     headscan = True
                 else:
-                    if tgtname != None:
+                    if tgtname is not None:
                         # XXX seems to be a dead branch
                         warning("skipping invalid patch - double target at line %d" % lineno)
                         self.errors += 1
@@ -705,7 +718,7 @@ class PatchSet(object):
                     p.target = p.target.partition(sep)[2]
                 # absolute paths are not allowed
             if xisabs(p.source) or xisabs(p.target):
-                warning("error: absolute paths are not allowed - file no.%d" % (i + 1))
+                warning("warning: absolute paths are not allowed (but who cares) - file no.%d" % (i + 1))
                 self.warnings += 1
                 if xisabs(p.source):
                     warning("stripping absolute path from source name '%s'" % p.source)
@@ -747,11 +760,11 @@ class PatchSet(object):
         statlen = len(str(maxdiff))  # stats column width
         for i, n in enumerate(names):
             # %-19s | %-4d %s
-            format = " %-" + str(namelen) + "s | %" + str(statlen) + "s %s\n"
+            fmt = " %-" + str(namelen) + "s | %" + str(statlen) + "s %s\n"
 
             hist = ''
             # -- calculating histogram --
-            width = len(format % ('', '', ''))
+            width = len(fmt % ('', '', ''))
             histwidth = max(2, 80 - width)
             if maxdiff < histwidth:
                 hist = "+" * insert[i] + "-" * delete[i]
@@ -765,7 +778,7 @@ class PatchSet(object):
                 #print iratio, dratio, iwidth, dwidth, histwidth
                 hist = "+" * int(iwidth) + "-" * int(dwidth)
                 # -- /calculating +- histogram --
-            output += (format % (names[i], insert[i] + delete[i], hist))
+            output += (fmt % (names[i], insert[i] + delete[i], hist))
 
         output += (" %d files changed, %d insertions(+), %d deletions(-)"
                    % (len(names), sum(insert), sum(delete)))
@@ -776,7 +789,6 @@ class PatchSet(object):
             return True on success
         """
 
-        debug("Hello %s", "fred")
         total = len(self.items)
         errors = 0
         if strip:
@@ -818,7 +830,7 @@ class PatchSet(object):
             if six.PY2:
                 f2fp = open(filename, "rb")
             else:
-                f2fp = open(filename, "r")
+                f2fp = open(filename, "r", encoding="utf-8", errors="replace")
             hunkno = 0
             hunk = p.hunks[hunkno]
             hunkfind = []
@@ -927,7 +939,7 @@ class PatchSet(object):
         if six.PY2:
             fp = open(abspath(filepath), "rb")
         else:
-            fp = open(abspath(filepath), "r")
+            fp = open(abspath(filepath), "r", encoding="utf-8", errors="replace")
 
         class NoMatch(Exception):
             pass
@@ -1034,8 +1046,8 @@ class PatchSet(object):
                 src = open(srcname, "rb")
                 tgt = open(tgtname, "wb")
             else:
-                src = open(srcname, "r")
-                tgt = open(tgtname, "w")
+                src = open(srcname, "r", encoding="utf-8")
+                tgt = open(tgtname, "w", encoding="utf-8")
 
             debug("processing target file %s" % tgtname)
 
@@ -1048,6 +1060,10 @@ class PatchSet(object):
             return True
         except Exception as e:
             debug("Error writing hunks: %s" % str(e))
+            # Provide more detailed error for Unicode issues
+            if isinstance(e, UnicodeEncodeError):
+                debug("Unicode encoding error at position %d: character '\\u%04x' cannot be encoded" %
+                      (e.start, ord(e.object[e.start])))
             if tgt:
                 tgt.close()
             if src:
